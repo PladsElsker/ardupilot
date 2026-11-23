@@ -1335,8 +1335,45 @@ float QuadPlane::get_pilot_input_yaw_rate_cds(void) const
 /*
   get overall desired yaw rate in cd/s
  */
+#if AP_SCRIPTING_ENABLED
+bool QuadPlane::landing_yaw_available()
+{
+    return initialised && hal.util->get_soft_armed() &&
+        plane.control_mode == &plane.mode_qland &&
+        (poscontrol.get_state() == QPOS_LAND_DESCEND ||
+         (poscontrol.get_state() == QPOS_LAND_FINAL &&
+          plane.relative_ground_altitude(RangeFinderUse::TAKEOFF_LANDING) > 1.0f)) &&
+        !plane.any_failsafe_triggered() && !plane.rc_failsafe_active() &&
+        !plane.failsafe.rc_failsafe && !plane.has_ekf_failsafed() && ahrs.healthy() &&
+        plane.channel_rudder->get_control_in() == 0 &&
+        plane.channel_roll->get_control_in() == 0 &&
+        plane.channel_pitch->get_control_in() == 0;
+}
+
+bool QuadPlane::set_landing_yaw_rate(float rate_dps)
+{
+    if (!isfinite(rate_dps) || fabsf(rate_dps) > 90 || !landing_yaw_available()) {
+        clear_landing_yaw_rate();
+        return false;
+    }
+    landing_yaw.rate_dps = rate_dps;
+    landing_yaw.updated_ms = AP_HAL::millis();
+    landing_yaw.active = true;
+    return true;
+}
+#endif
+
 float QuadPlane::get_desired_yaw_rate_cds(bool should_weathervane)
 {
+#if AP_SCRIPTING_ENABLED
+    if (landing_yaw.active) {
+        // Never let a stalled script retain control, or conceal RC/failsafe input.
+        if (AP_HAL::millis() - landing_yaw.updated_ms < 200 && landing_yaw_available()) {
+            return landing_yaw.rate_dps * 100;
+        }
+        clear_landing_yaw_rate();
+    }
+#endif
     float yaw_cds = 0;
     if (assisted_flight) {
         // use bank angle to get desired yaw rate
@@ -4810,6 +4847,9 @@ bool QuadPlane::in_vtol_takeoff(void) const
 // called when we change mode (for any mode, not just Q modes)
 void QuadPlane::mode_enter(void)
 {
+#if AP_SCRIPTING_ENABLED
+    clear_landing_yaw_rate();
+#endif
     if (available()) {
         pos_control->set_lean_angle_max_cd(0);
     }
