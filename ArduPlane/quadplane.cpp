@@ -1335,7 +1335,7 @@ float QuadPlane::get_pilot_input_yaw_rate_cds(void) const
 /*
   get overall desired yaw rate in cd/s
  */
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_LUA_ENABLED
 bool QuadPlane::landing_yaw_available()
 {
     return initialised && hal.util->get_soft_armed() &&
@@ -1365,7 +1365,7 @@ bool QuadPlane::set_landing_yaw_rate(float rate_dps)
 
 float QuadPlane::get_desired_yaw_rate_cds(bool should_weathervane)
 {
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_LUA_ENABLED
     if (landing_yaw.active) {
         // Never let a stalled script retain control, or conceal RC/failsafe input.
         if (AP_HAL::millis() - landing_yaw.updated_ms < 200 && landing_yaw_available()) {
@@ -4847,7 +4847,7 @@ bool QuadPlane::in_vtol_takeoff(void) const
 // called when we change mode (for any mode, not just Q modes)
 void QuadPlane::mode_enter(void)
 {
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_LUA_ENABLED
     clear_landing_yaw_rate();
 #endif
     if (available()) {
