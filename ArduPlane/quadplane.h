@@ -17,6 +17,8 @@
 #include <AP_Logger/LogStructure.h>
 #include <AP_Mission/AP_Mission.h>
 #include <AP_Proximity/AP_Proximity.h>
+#include <AP_HAL/AP_HAL_Boards.h>
+#include <AP_Scripting/AP_Scripting_config.h>
 #include "qautotune.h"
 #include "defines.h"
 #include "tailsitter.h"
