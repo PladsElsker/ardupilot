@@ -182,7 +182,7 @@ public:
      */
     bool in_vtol_land_descent(void) const;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_LUA_ENABLED
     bool set_landing_yaw_rate(float rate_dps);
     void clear_landing_yaw_rate() { landing_yaw.active = false; }
 #endif
@@ -204,7 +204,7 @@ public:
 private:
     AP_AHRS &ahrs;
 
-#if AP_SCRIPTING_ENABLED
+#if AP_SCRIPTING_LUA_ENABLED
     bool landing_yaw_available();
     struct {
         float rate_dps;
