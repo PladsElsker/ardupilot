@@ -114,6 +114,13 @@ pendant l'exposition/le transport. Le lien doit conserver une faible latence.
 Si l'horloge du compagnon repart en arrière après redémarrage, l'alignement
 reste suspendu jusqu'à la prochaine sortie de QLAND/désactivation.
 
+Le script décode la structure interne `mavlink_message_t` fournie par
+`mavlink:receive_chan()`. Les formats standards de 291 octets (SYSID sur 8 bits)
+et de 298 octets (SYSID sur 32 bits) sont pris en charge. La sélection de source
+reste limitée à `QYAW_SYSID=1..255` ; les autres identifiants sont rejetés sans
+tronquer leurs octets de poids fort. Les structures d’une autre taille sont
+ignorées. Cette taille interne est distincte de celle du paquet MAVLink sur le lien.
+
 ## Vérification
 
 Depuis la racine de ce dépôt, avec Lua 5.4 :
@@ -125,5 +132,7 @@ python3 -m pytest -q libraries/AP_Scripting/tests/test_qland_lua.py
 
 Le test Lua simule les bindings du FC et vérifie les commandes de lacet,
 les paramètres, la fraîcheur des mesures et la libération de la consigne.
+Le lanceur pytest exécute les scénarios avec les deux formats de structure
+MAVLink, y compris le rejet des identifiants étendus non autorisés.
 Les tests d’intégration SITL utilisant les mesures publiées par Autolander
 restent dans son dépôt : `tests/integration/test_qland_yaw_sitl.py`.

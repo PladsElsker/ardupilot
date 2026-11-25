@@ -1,4 +1,5 @@
 local script = assert(arg[1])
+local sysid32 = arg[2] ~= "legacy"
 local checks = 0
 
 local function uint32(value)
@@ -59,8 +60,12 @@ local function fixture(options)
         local payload = string.pack("<I8fffffBBfffffffBB", stamp, 0, 0, 6, 0, 0, 0,
             fields.frame or 12, fields.x or 0, fields.y or 0, fields.z or 6,
             q[1], q[2], q[3], q[4], 2, fields.valid or 1)
-        local raw = string.pack("<HBBBBBBBI3", 0, fields.version or 0xFD, 60, 0, 0, 1,
-            fields.sysid or 255, fields.compid or 191, 149) .. payload
+        -- receive_chan returns the complete packed C structure, not a wire packet.
+        local format = sysid32 and "<HBBBBBI4BI3" or "<HBBBBBBBI3"
+        local raw = string.pack(format, 0, fields.version or 0xFD, 60, 0, 0, 1,
+            fields.sysid or 255, fields.compid or 191, fields.msgid or 149) .. payload
+        raw = raw .. string.rep("\0", (sysid32 and 298 or 291) - #raw)
+        if fields.raw_size then raw = (raw .. string.rep("\0", fields.raw_size)):sub(1, fields.raw_size) end
         table.insert(self.queue, {raw = raw, received = fields.received or (self.now & 0xffffffff)})
     end
     function f:tick(degrees, fields)
@@ -117,9 +122,26 @@ end)
 check("invalid geometry, orientation, frame and source cannot command yaw", function()
     for _, fields in ipairs({{z=3}, {x=3}, {q={0,0,0,0}}, {q={0/0,0,0,0}},
         {q={math.sqrt(0.5),0,math.sqrt(0.5),0}}, {frame=8}, {version=0xFE},
-        {compid=1}, {sysid=1}, {valid=0}, {z=0/0}, {received=1}}) do
+        {compid=1}, {sysid=1}, {msgid=150}, {valid=0}, {z=0/0}, {received=1}}) do
         local f = fixture()
         f:acquire(30, fields)
+        assert(#f.rates == 0)
+    end
+end)
+
+check("extended source IDs cannot impersonate the allowed companion", function()
+    if not sysid32 then return end
+    for _, source in ipairs({511, 0x100000ff, 0xffffffff}) do
+        local f = fixture()
+        f:acquire(30, {sysid=source})
+        assert(#f.rates == 0)
+    end
+end)
+
+check("unknown MAVLink structure cannot command yaw", function()
+    for _, size in ipairs({12, 72, 75, 290, 292}) do
+        local f = fixture()
+        f:acquire(30, {raw_size=size})
         assert(#f.rates == 0)
     end
 end)

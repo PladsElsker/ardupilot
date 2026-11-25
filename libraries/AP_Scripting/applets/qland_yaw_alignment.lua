@@ -59,15 +59,22 @@ local function valid_parameters()
         and GAIN:get() > 0 and GAIN:get() <= 5 and finite(FORWARD:get())
 end
 
-local function decode(raw)
-    -- receive_chan supplies mavlink_message_t, with the payload at byte 13.
+local function payload_offset(raw)
+    -- receive_chan returns the packed C structure, not the wire packet.
+    -- Standard MAVLink buffers are 291 bytes (8-bit sysid) or 298 (32-bit sysid).
+    if #raw == 291 then return 13 end
+    if #raw == 298 then return 16 end
+    return nil
+end
+
+local function decode(raw, offset)
     -- ArduPilot has already checked the MAVLink checksum/signature on reception.
-    if #raw < 72 or string.byte(raw, 3) ~= 0xFD or string.byte(raw, 4) < 60 then
+    if string.byte(raw, 3) ~= 0xFD or string.byte(raw, 4) < 60 then
         return nil
     end
     -- ArduPilot Lua has 32-bit integers/floats: keep the uint64 capture time in four exact words.
     local a, b, c, d, _, _, distance, _, _, number, frame, x, y, z, w, qx, qy, qz, kind, valid =
-        string.unpack("<I2I2I2I2fffffBBfffffffBB", raw, 13)
+        string.unpack("<I2I2I2I2fffffBBfffffffBB", raw, offset)
     local norm = w*w + qx*qx + qy*qy + qz*qz
     if (a == 0 and b == 0 and c == 0 and d == 0) or number ~= 0 or frame ~= 12 or kind ~= 2 or valid ~= 1
         or not finite(x) or not finite(y) or not finite(z) or z <= 0
@@ -102,9 +109,13 @@ local function receive(now)
     for _ = 1, 10 do
         local raw, _, received_ms = mavlink:receive_chan()
         if not raw then break end
-        if #raw >= 12 and string.byte(raw, 8) == SYSID:get() and string.byte(raw, 9) == COMPID:get()
-            and string.unpack("<I3", raw, 10) == 149 then
-            local sample = decode(raw)
+        local offset = payload_offset(raw)
+        if offset and string.byte(raw, 8) == SYSID:get()
+            -- QYAW_SYSID accepts 1..255; reject extended IDs sharing the low byte.
+            and (offset == 13 or string.unpack("<I3", raw, 9) == 0)
+            and string.byte(raw, offset - 4) == COMPID:get()
+            and string.unpack("<I3", raw, offset - 3) == 149 then
+            local sample = decode(raw, offset)
             local age = (now - received_ms):toint()
             if not sample or age < 0 or age > MAX_AGE:get()*1000 then
                 target, stable_since = nil, nil

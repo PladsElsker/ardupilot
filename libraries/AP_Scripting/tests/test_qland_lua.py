@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 
-def test_lua_controller():
+@pytest.mark.parametrize("layout", ["legacy", "sysid32"])
+def test_lua_controller(layout):
     lua = shutil.which("lua5.4") or shutil.which("lua")
     if lua is None:
         pytest.skip("Install lua5.4 to run the flight-controller script tests")
@@ -17,6 +18,7 @@ def test_lua_controller():
             lua,
             str(scripting / "tests/qland_yaw_alignment_test.lua"),
             str(scripting / "applets/qland_yaw_alignment.lua"),
+            layout,
         ],
         text=True,
         capture_output=True,
